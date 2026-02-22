@@ -1,14 +1,39 @@
 version = 0.1
 
+# Default (safe) config: SAM auto-manages the packaging bucket
 [default.deploy.parameters]
 stack_name = "e2e-aws-glue-iceberg-lakehouse-stack"
-resolve_s3 = true
-#s3_prefix = "siddu-etl-stack"
-confirm_changeset = true
-capabilities = "CAPABILITY_IAM"
-parameter_overrides = "BucketName=\"e2e-aws-glue-iceberg-lakehouse-bucket\" WarehousePrefix=\"warehouse/\" GlueScriptsPrefix=\"glue-scripts/\" Timezone=\"Europe/London\""
-image_repositories = []
-disable_rollback = true
-
-[default.global.parameters]
 region = "eu-west-2"
+resolve_s3 = true
+confirm_changeset = false
+disable_rollback = false
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+no_fail_on_empty_changeset = true
+
+# (Optional) parameter overrides for your template.
+# Keep all values as strings.
+parameter_overrides = [
+  "Stage=dev",
+  "EnableSchedule=false",
+  "WarehousePrefix=warehouse/",
+  "GlueScriptsPrefix=glue-scripts/",
+  "Timezone=Europe/London"
+]
+
+# If you want a PROD profile, you can deploy with:
+#   sam deploy --config-env prod
+[prod.deploy.parameters]
+stack_name = "e2e-aws-glue-iceberg-lakehouse-stack-prod"
+region = "eu-west-2"
+resolve_s3 = true
+confirm_changeset = false
+disable_rollback = false
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+no_fail_on_empty_changeset = true
+parameter_overrides = [
+  "Stage=prod",
+  "EnableSchedule=true",
+  "WarehousePrefix=warehouse/",
+  "GlueScriptsPrefix=glue-scripts/",
+  "Timezone=Europe/London"
+]

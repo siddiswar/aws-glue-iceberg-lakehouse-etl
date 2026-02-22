@@ -62,7 +62,7 @@ PARAM_OVERRIDES="$(build_parameter_overrides)"
 
 echo "==> SAM deploy (non-interactive)"
 # Notes:
-# - CAPABILITY_NAMED_IAM is required if the template sets RoleName for IAM roles.
+# - CAPABILITY_NAMED_IAM is required because the template sets RoleName for IAM roles.
 # - --no-confirm-changeset avoids interactive prompt.
 # - --no-fail-on-empty-changeset makes re-runs painless.
 sam deploy \
@@ -95,4 +95,4 @@ echo "✅ Bucket: ${DEPLOYED_BUCKET}"
 echo "✅ State machine: ${STATE_MACHINE_ARN}"
 echo ""
 echo "Next:"
-echo " - Run on-demand: Start execution of the Step Functions state machine with input {}"
+echo " - Run on-demand: Start execution of state machine 'etl_daily_pipeline' with input {}"
