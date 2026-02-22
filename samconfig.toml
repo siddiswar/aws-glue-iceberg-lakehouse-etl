@@ -1,0 +1,14 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "e2e-aws-glue-iceberg-lakehouse-stack"
+resolve_s3 = true
+#s3_prefix = "siddu-etl-stack"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "BucketName=\"e2e-aws-glue-iceberg-lakehouse-bucket\" WarehousePrefix=\"warehouse/\" GlueScriptsPrefix=\"glue-scripts/\" Timezone=\"Europe/London\""
+image_repositories = []
+disable_rollback = true
+
+[default.global.parameters]
+region = "eu-west-2"

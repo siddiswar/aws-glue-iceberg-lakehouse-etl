@@ -1,0 +1,40 @@
+import sys
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+
+args = getResolvedOptions(sys.argv, ["JOB_NAME"])
+sc = SparkContext()
+glueContext = GlueContext(sc)
+spark = glueContext.spark_session
+
+spark.sql("CREATE DATABASE IF NOT EXISTS glue_catalog.bronze")
+spark.sql("CREATE DATABASE IF NOT EXISTS glue_catalog.silver")
+spark.sql("CREATE DATABASE IF NOT EXISTS glue_catalog.gold")
+
+spark.sql("""CREATE TABLE IF NOT EXISTS glue_catalog.bronze.customers_stg (
+  customer_id string, full_name string, email string, city string, updated_at timestamp, dt date, ingest_ts timestamp
+) USING iceberg PARTITIONED BY (dt)""")
+spark.sql("""CREATE TABLE IF NOT EXISTS glue_catalog.bronze.products_stg (
+  product_id string, product_name string, category string, list_price double, updated_at timestamp, dt date, ingest_ts timestamp
+) USING iceberg PARTITIONED BY (dt)""")
+spark.sql("""CREATE TABLE IF NOT EXISTS glue_catalog.bronze.orders_stg (
+  order_id string, order_ts timestamp, customer_id string, product_id string, quantity int, unit_price double, dt date, ingest_ts timestamp
+) USING iceberg PARTITIONED BY (dt)""")
+
+spark.sql("""CREATE TABLE IF NOT EXISTS glue_catalog.silver.dim_customer_scd2 (
+  customer_id string, full_name string, email string, city string, hash_diff string,
+  effective_from_ts timestamp, effective_to_ts timestamp, is_current boolean, ingest_ts timestamp
+) USING iceberg PARTITIONED BY (is_current)""")
+spark.sql("""CREATE TABLE IF NOT EXISTS glue_catalog.silver.dim_product_scd2 (
+  product_id string, product_name string, category string, list_price double, hash_diff string,
+  effective_from_ts timestamp, effective_to_ts timestamp, is_current boolean, ingest_ts timestamp
+) USING iceberg PARTITIONED BY (is_current)""")
+spark.sql("""CREATE TABLE IF NOT EXISTS glue_catalog.silver.fact_orders (
+  order_id string, order_ts timestamp, customer_id string, product_id string, quantity int, unit_price double,
+  order_amount decimal(18,2), dt date, ingest_ts timestamp
+) USING iceberg PARTITIONED BY (dt)""")
+spark.sql("""CREATE TABLE IF NOT EXISTS glue_catalog.gold.daily_product_sales (
+  dt date, product_id string, category string, orders_count bigint, units_sold bigint, gross_revenue decimal(18,2),
+  unique_customers bigint, ingest_ts timestamp
+) USING iceberg PARTITIONED BY (dt)""")

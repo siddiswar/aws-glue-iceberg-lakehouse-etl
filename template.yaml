@@ -1,0 +1,446 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Lakehouse ETL pipeline (S3 + Iceberg/Parquet + Glue + Step Functions + Scheduler + DynamoDB) in eu-west-2.
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 60
+    MemorySize: 256
+
+Parameters:
+  BucketName:
+    Type: String
+    Default: e2e-aws-glue-iceberg-lakehouse-bucket
+  WarehousePrefix:
+    Type: String
+    Default: warehouse/
+  GlueScriptsPrefix:
+    Type: String
+    Default: glue-scripts/
+  Timezone:
+    Type: String
+    Default: Europe/London
+
+Resources:
+  LakeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+
+  GeneratorStateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: etl_generator_state
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+
+  DimStoreTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: etl_dim_store
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: entity
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: entity
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+
+  ComputeYesterdayDt:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/lambda/compute_yesterday_dt/
+      Handler: app.lambda_handler
+
+  GenerateRawCSVs:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/lambda/generate_raw_csvs/
+      Handler: app.lambda_handler
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          RAW_BUCKET: !Ref BucketName
+          STATE_TABLE: !Ref GeneratorStateTable
+          DIM_TABLE: !Ref DimStoreTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref GeneratorStateTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DimStoreTable
+        - S3WritePolicy:
+            BucketName: !Ref BucketName
+
+  GlueJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueS3AndCatalogAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [ s3:GetObject, s3:PutObject, s3:DeleteObject, s3:ListBucket ]
+                Resource:
+                  - !Sub arn:aws:s3:::${BucketName}
+                  - !Sub arn:aws:s3:::${BucketName}/*
+              - Effect: Allow
+                Action:
+                  - glue:CreateDatabase
+                  - glue:GetDatabase
+                  - glue:GetDatabases
+                  - glue:CreateTable
+                  - glue:GetTable
+                  - glue:GetTables
+                  - glue:UpdateTable
+                  - glue:DeleteTable
+                Resource: "*"
+
+  InitIcebergTablesJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: init_iceberg_tables
+      Role: !GetAtt GlueJobRole.Arn
+      GlueVersion: "4.0"
+      Command:
+        Name: glueetl
+        PythonVersion: "3"
+        ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}init_iceberg_tables.py
+      DefaultArguments:
+        "--datalake-formats": "iceberg"
+        "--conf": !Sub >
+          spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+          --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+          --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+          --conf spark.sql.catalog.glue_catalog.warehouse=s3://${BucketName}/${WarehousePrefix}
+          --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      WorkerType: G.1X
+      NumberOfWorkers: 2
+
+  BronzeIngestCustomersJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: bronze_ingest_customers
+      Role: !GetAtt GlueJobRole.Arn
+      GlueVersion: "4.0"
+      Command:
+        Name: glueetl
+        PythonVersion: "3"
+        ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}bronze_ingest_customers.py
+      DefaultArguments:
+        "--datalake-formats": "iceberg"
+        "--bucket": !Ref BucketName
+        "--raw_prefix": "raw/customers"
+        "--conf": !Sub >
+          spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+          --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+          --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+          --conf spark.sql.catalog.glue_catalog.warehouse=s3://${BucketName}/${WarehousePrefix}
+          --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      WorkerType: G.1X
+      NumberOfWorkers: 2
+
+  BronzeIngestProductsJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: bronze_ingest_products
+      Role: !GetAtt GlueJobRole.Arn
+      GlueVersion: "4.0"
+      Command:
+        Name: glueetl
+        PythonVersion: "3"
+        ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}bronze_ingest_products.py
+      DefaultArguments:
+        "--datalake-formats": "iceberg"
+        "--bucket": !Ref BucketName
+        "--raw_prefix": "raw/products"
+        "--conf": !Sub >
+          spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+          --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+          --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+          --conf spark.sql.catalog.glue_catalog.warehouse=s3://${BucketName}/${WarehousePrefix}
+          --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      WorkerType: G.1X
+      NumberOfWorkers: 2
+
+  BronzeIngestOrdersJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: bronze_ingest_orders
+      Role: !GetAtt GlueJobRole.Arn
+      GlueVersion: "4.0"
+      Command:
+        Name: glueetl
+        PythonVersion: "3"
+        ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}bronze_ingest_orders.py
+      DefaultArguments:
+        "--datalake-formats": "iceberg"
+        "--bucket": !Ref BucketName
+        "--raw_prefix": "raw/orders"
+        "--conf": !Sub >
+          spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+          --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+          --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+          --conf spark.sql.catalog.glue_catalog.warehouse=s3://${BucketName}/${WarehousePrefix}
+          --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      WorkerType: G.1X
+      NumberOfWorkers: 2
+
+  SilverMergeDimCustomerJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: silver_merge_dim_customer_scd2
+      Role: !GetAtt GlueJobRole.Arn
+      GlueVersion: "4.0"
+      Command:
+        Name: glueetl
+        PythonVersion: "3"
+        ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}silver_merge_dim_customer_scd2.py
+      DefaultArguments:
+        "--datalake-formats": "iceberg"
+        "--conf": !Sub >
+          spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+          --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+          --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+          --conf spark.sql.catalog.glue_catalog.warehouse=s3://${BucketName}/${WarehousePrefix}
+          --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      WorkerType: G.1X
+      NumberOfWorkers: 2
+
+  SilverMergeDimProductJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: silver_merge_dim_product_scd2
+      Role: !GetAtt GlueJobRole.Arn
+      GlueVersion: "4.0"
+      Command:
+        Name: glueetl
+        PythonVersion: "3"
+        ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}silver_merge_dim_product_scd2.py
+      DefaultArguments:
+        "--datalake-formats": "iceberg"
+        "--conf": !Sub >
+          spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+          --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+          --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+          --conf spark.sql.catalog.glue_catalog.warehouse=s3://${BucketName}/${WarehousePrefix}
+          --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      WorkerType: G.1X
+      NumberOfWorkers: 2
+
+  SilverLoadFactOrdersJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: silver_load_fact_orders
+      Role: !GetAtt GlueJobRole.Arn
+      GlueVersion: "4.0"
+      Command:
+        Name: glueetl
+        PythonVersion: "3"
+        ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}silver_load_fact_orders.py
+      DefaultArguments:
+        "--datalake-formats": "iceberg"
+        "--conf": !Sub >
+          spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+          --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+          --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+          --conf spark.sql.catalog.glue_catalog.warehouse=s3://${BucketName}/${WarehousePrefix}
+          --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      WorkerType: G.1X
+      NumberOfWorkers: 2
+
+  GoldBuildDailyProductSalesJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: gold_build_daily_product_sales
+      Role: !GetAtt GlueJobRole.Arn
+      GlueVersion: "4.0"
+      Command:
+        Name: glueetl
+        PythonVersion: "3"
+        ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}gold_build_daily_product_sales.py
+      DefaultArguments:
+        "--datalake-formats": "iceberg"
+        "--conf": !Sub >
+          spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+          --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+          --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+          --conf spark.sql.catalog.glue_catalog.warehouse=s3://${BucketName}/${WarehousePrefix}
+          --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      WorkerType: G.1X
+      NumberOfWorkers: 2
+
+  ETLStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: etl_daily_pipeline
+      Definition:
+        StartAt: ComputeYesterdayDt
+        States:
+          ComputeYesterdayDt:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            Parameters:
+              FunctionName: !GetAtt ComputeYesterdayDt.Arn
+              Payload: { }
+            OutputPath: $.Payload
+            Next: InitIcebergTables
+
+          InitIcebergTables:
+            Type: Task
+            Resource: arn:aws:states:::glue:startJobRun.sync
+            Parameters:
+              JobName: init_iceberg_tables
+              Arguments: { }
+            ResultPath: $.init
+            Next: GenerateRawCSVs
+
+          GenerateRawCSVs:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            Parameters:
+              FunctionName: !GetAtt GenerateRawCSVs.Arn
+              Payload:
+                dt.$: $.dt
+            ResultPath: $.gen
+            Next: BronzeIngestCustomers
+
+          BronzeIngestCustomers:
+            Type: Task
+            Resource: arn:aws:states:::glue:startJobRun.sync
+            Parameters:
+              JobName: bronze_ingest_customers
+              Arguments:
+                --dt.$: $.dt
+            ResultPath: $.bronze_customers
+            Next: BronzeIngestProducts
+
+          BronzeIngestProducts:
+            Type: Task
+            Resource: arn:aws:states:::glue:startJobRun.sync
+            Parameters:
+              JobName: bronze_ingest_products
+              Arguments:
+                --dt.$: $.dt
+            ResultPath: $.bronze_products
+            Next: BronzeIngestOrders
+
+          BronzeIngestOrders:
+            Type: Task
+            Resource: arn:aws:states:::glue:startJobRun.sync
+            Parameters:
+              JobName: bronze_ingest_orders
+              Arguments:
+                --dt.$: $.dt
+            ResultPath: $.bronze_orders
+            Next: MergeDimCustomerSCD2
+
+          MergeDimCustomerSCD2:
+            Type: Task
+            Resource: arn:aws:states:::glue:startJobRun.sync
+            Parameters:
+              JobName: silver_merge_dim_customer_scd2
+              Arguments:
+                --dt.$: $.dt
+            ResultPath: $.merge_customer
+            Next: MergeDimProductSCD2
+
+          MergeDimProductSCD2:
+            Type: Task
+            Resource: arn:aws:states:::glue:startJobRun.sync
+            Parameters:
+              JobName: silver_merge_dim_product_scd2
+              Arguments:
+                --dt.$: $.dt
+            ResultPath: $.merge_product
+            Next: LoadFactOrders
+
+          LoadFactOrders:
+            Type: Task
+            Resource: arn:aws:states:::glue:startJobRun.sync
+            Parameters:
+              JobName: silver_load_fact_orders
+              Arguments:
+                --dt.$: $.dt
+            ResultPath: $.fact_orders
+            Next: BuildGoldDailyProductSales
+
+          BuildGoldDailyProductSales:
+            Type: Task
+            Resource: arn:aws:states:::glue:startJobRun.sync
+            Parameters:
+              JobName: gold_build_daily_product_sales
+              Arguments:
+                --dt.$: $.dt
+            ResultPath: $.gold
+            Next: Done
+
+          Done:
+            Type: Succeed
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ComputeYesterdayDt
+        - LambdaInvokePolicy:
+            FunctionName: !Ref GenerateRawCSVs
+        - Statement:
+            Effect: Allow
+            Action: [ glue:StartJobRun, glue:GetJobRun, glue:GetJobRuns ]
+            Resource: "*"
+
+  DailySchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub etl-6am-uk-${AWS::StackName}
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      ScheduleExpression: "cron(0 6 * * ? *)"
+      ScheduleExpressionTimezone: !Ref Timezone
+      Target:
+        Arn: !Ref ETLStateMachine
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: "{}"
+
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StartStateMachine
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: !Ref ETLStateMachine
+
+Outputs:
+  BucketName:
+    Value: !Ref BucketName
+  StateMachineArn:
+    Value: !Ref ETLStateMachine
