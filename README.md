@@ -1,4 +1,4 @@
----
+***
 
 ## S3 layout
 
@@ -18,7 +18,7 @@ Iceberg tables live under:
 
 Iceberg stores **Parquet data files** plus **metadata** (snapshots, manifests) in these locations.
 
----
+***
 
 ## DynamoDB tables
 
@@ -45,7 +45,7 @@ This lets each day’s raw CSV contain consistent entities, with a small percent
 > **Important DynamoDB note:** Python `float` values cannot be written to DynamoDB via boto3; numeric values must be
 > stored as `Decimal`. The generator Lambda converts floats to `Decimal` before writing.
 
----
+***
 
 ## Lambdas
 
@@ -110,7 +110,7 @@ For a given input `dt`:
 
 Returns a small JSON payload including `dt` and bucket (and can include status).
 
----
+***
 
 ## Glue jobs and transformation logic
 
@@ -236,7 +236,7 @@ Same SCD2 logic as customer dim.
 
 **Output:** `gold.daily_product_sales`
 
----
+***
 
 ## Step Functions state management (important)
 
@@ -248,7 +248,7 @@ To preserve `dt` across steps, each Glue task stores its output under a `ResultP
 
 This ensures `$.dt` is always available for the next task.
 
----
+***
 
 ## Deploy
 
