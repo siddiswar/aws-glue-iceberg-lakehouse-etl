@@ -127,6 +127,7 @@ Resources:
         PythonVersion: "3"
         ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}init_iceberg_tables.py
       DefaultArguments:
+        "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
         "--conf": !Sub >
           spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
@@ -148,6 +149,7 @@ Resources:
         PythonVersion: "3"
         ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}bronze_ingest_customers.py
       DefaultArguments:
+        "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
         "--bucket": !Ref BucketName
         "--raw_prefix": "raw/customers"
@@ -171,6 +173,7 @@ Resources:
         PythonVersion: "3"
         ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}bronze_ingest_products.py
       DefaultArguments:
+        "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
         "--bucket": !Ref BucketName
         "--raw_prefix": "raw/products"
@@ -194,6 +197,7 @@ Resources:
         PythonVersion: "3"
         ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}bronze_ingest_orders.py
       DefaultArguments:
+        "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
         "--bucket": !Ref BucketName
         "--raw_prefix": "raw/orders"
@@ -217,6 +221,7 @@ Resources:
         PythonVersion: "3"
         ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}silver_merge_dim_customer_scd2.py
       DefaultArguments:
+        "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
         "--conf": !Sub >
           spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
@@ -238,6 +243,7 @@ Resources:
         PythonVersion: "3"
         ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}silver_merge_dim_product_scd2.py
       DefaultArguments:
+        "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
         "--conf": !Sub >
           spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
@@ -259,6 +265,7 @@ Resources:
         PythonVersion: "3"
         ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}silver_load_fact_orders.py
       DefaultArguments:
+        "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
         "--conf": !Sub >
           spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
@@ -280,6 +287,7 @@ Resources:
         PythonVersion: "3"
         ScriptLocation: !Sub s3://${BucketName}/${GlueScriptsPrefix}gold_build_daily_product_sales.py
       DefaultArguments:
+        "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
         "--conf": !Sub >
           spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
