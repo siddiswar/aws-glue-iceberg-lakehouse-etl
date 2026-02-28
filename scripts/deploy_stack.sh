@@ -68,6 +68,7 @@ echo "==> SAM deploy (non-interactive)"
 sam deploy \
   --region "${REGION}" \
   --stack-name "${STACK_NAME}" \
+  --resolve-s3 \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
   --no-confirm-changeset \
   --no-fail-on-empty-changeset \
@@ -85,6 +86,14 @@ fi
 
 # If GlueScriptsPrefix param wasn't provided, fall back to template default (glue-scripts/)
 PREFIX="${GLUE_SCRIPTS_PREFIX:-glue-scripts/}"
+
+
+echo "==> Packaging lakehouse_etl (Glue extra-py-files)"
+rm -f /tmp/lakehouse_etl.zip
+(cd src && zip -qr /tmp/lakehouse_etl.zip lakehouse_etl)
+
+echo "==> Uploading deps to s3://${DEPLOYED_BUCKET}/${PREFIX}deps/lakehouse_etl.zip"
+aws s3 cp /tmp/lakehouse_etl.zip "s3://${DEPLOYED_BUCKET}/${PREFIX}deps/lakehouse_etl.zip" --region "${REGION}"
 
 echo "==> Syncing Glue scripts to s3://${DEPLOYED_BUCKET}/${PREFIX}"
 aws s3 sync glue/ "s3://${DEPLOYED_BUCKET}/${PREFIX}" --region "${REGION}"
