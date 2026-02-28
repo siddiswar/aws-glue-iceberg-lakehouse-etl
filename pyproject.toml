@@ -1,0 +1,56 @@
+[project]
+name = "aws-glue-iceberg-lakehouse-etl"
+version = "0.1.0"
+description = "End-to-end AWS Glue + Iceberg lakehouse ETL orchestrated via Step Functions"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Siddu" }]
+license = { text = "MIT" }
+
+# Runtime deps (keep minimal; Lambda/runtime only)
+dependencies = [
+  "boto3>=1.34,<2.0",
+]
+
+# Optional extras for local development, linting, tests, type checking
+[project.optional-dependencies]
+dev = [
+  "ruff>=0.6,<1.0",
+  "black>=24.0,<26.0",
+  "pytest>=8.0,<9.0",
+  "mypy>=1.8,<2.0",
+  "boto3-stubs[dynamodb,s3,lambda,stepfunctions,glue,athena]>=1.34,<2.0",
+]
+
+# Optional: local Spark testing (NOT required to deploy/run in AWS Glue)
+spark = [
+  "pyspark>=3.4,<3.6",
+  "chispa>=0.10.1,<1.0",
+]
+
+# Optional: nicer local env handling (only if you want .env support)
+env = [
+  "python-dotenv>=1.0,<2.0",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_return_any = true
