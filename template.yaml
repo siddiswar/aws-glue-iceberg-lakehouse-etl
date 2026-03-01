@@ -59,13 +59,13 @@ Resources:
   ComputeYesterdayDt:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/lambda/compute_yesterday_dt/
+      CodeUri: src/lambdas/compute_yesterday_dt/
       Handler: app.lambda_handler
 
   GenerateRawCSVs:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/lambda/generate_raw_csvs/
+      CodeUri: src/lambdas/generate_raw_csvs/
       Handler: app.lambda_handler
       Timeout: 300
       MemorySize: 512
