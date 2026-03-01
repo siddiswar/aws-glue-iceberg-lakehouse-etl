@@ -129,6 +129,8 @@ Resources:
       DefaultArguments:
         "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
+        "--enable-spark-ui": "true"
+        "--spark-event-logs-path": !Sub "s3://${BucketName}/spark-ui-logs/"
         "--conf": !Sub >
           spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
           --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
@@ -151,6 +153,8 @@ Resources:
       DefaultArguments:
         "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
+        "--enable-spark-ui": "true"
+        "--spark-event-logs-path": !Sub "s3://${BucketName}/spark-ui-logs/"
         "--bucket": !Ref BucketName
         "--raw_prefix": "raw/customers"
         "--conf": !Sub >
@@ -175,6 +179,8 @@ Resources:
       DefaultArguments:
         "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
+        "--enable-spark-ui": "true"
+        "--spark-event-logs-path": !Sub "s3://${BucketName}/spark-ui-logs/"
         "--bucket": !Ref BucketName
         "--raw_prefix": "raw/products"
         "--conf": !Sub >
@@ -199,6 +205,8 @@ Resources:
       DefaultArguments:
         "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
+        "--enable-spark-ui": "true"
+        "--spark-event-logs-path": !Sub "s3://${BucketName}/spark-ui-logs/"
         "--bucket": !Ref BucketName
         "--raw_prefix": "raw/orders"
         "--conf": !Sub >
@@ -223,6 +231,8 @@ Resources:
       DefaultArguments:
         "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
+        "--enable-spark-ui": "true"
+        "--spark-event-logs-path": !Sub "s3://${BucketName}/spark-ui-logs/"
         "--conf": !Sub >
           spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
           --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
@@ -245,6 +255,8 @@ Resources:
       DefaultArguments:
         "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
+        "--enable-spark-ui": "true"
+        "--spark-event-logs-path": !Sub "s3://${BucketName}/spark-ui-logs/"
         "--conf": !Sub >
           spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
           --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
@@ -267,6 +279,8 @@ Resources:
       DefaultArguments:
         "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
+        "--enable-spark-ui": "true"
+        "--spark-event-logs-path": !Sub "s3://${BucketName}/spark-ui-logs/"
         "--conf": !Sub >
           spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
           --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
@@ -289,6 +303,8 @@ Resources:
       DefaultArguments:
         "--extra-py-files": !Sub "s3://${BucketName}/${GlueScriptsPrefix}deps/lakehouse_etl.zip"
         "--datalake-formats": "iceberg"
+        "--enable-spark-ui": "true"
+        "--spark-event-logs-path": !Sub "s3://${BucketName}/spark-ui-logs/"
         "--conf": !Sub >
           spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
           --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
